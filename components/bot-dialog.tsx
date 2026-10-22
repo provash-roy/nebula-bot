@@ -45,17 +45,38 @@ const jobPresets = [
 const defaultInstructions =
   "Answer briefly, cite sources, and ask before running anything destructive."
 
-export function BotDialog() {
-  const [open, setOpen] = useState(false)
+type BotDialogProps = {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  showTrigger?: boolean
+}
+
+export function BotDialog({
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
+}: BotDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = controlledOpen ?? uncontrolledOpen
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) {
+      setUncontrolledOpen(nextOpen)
+    }
+    onOpenChange?.(nextOpen)
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={<Button size="lg" className="h-11 rounded-xl px-4 text-base" />}
-      >
-        <PlusIcon data-icon="inline-start" />
-        Create a new bot
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger
+          render={
+            <Button size="lg" className="h-11 rounded-xl px-4 text-base" />
+          }
+        >
+          <PlusIcon data-icon="inline-start" />
+          Create a new bot
+        </DialogTrigger>
+      )}
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[26.5rem]">
         <DialogHeader className="px-4 pt-4 pb-3">
           <DialogTitle>New bot</DialogTitle>
