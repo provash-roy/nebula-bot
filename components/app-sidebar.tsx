@@ -2,6 +2,7 @@
 
 import { UserButton } from "@clerk/nextjs"
 import { PlusIcon, SearchIcon, UsersRoundIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { BotDialog } from "@/components/bot-dialog"
@@ -16,7 +17,6 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,17 +29,23 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 import type { UserChatSummary } from "@/queries/bots"
 
 export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
   const [botDialogOpen, setBotDialogOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const router = useRouter()
+
+  const navigateToChat = (chatId: string) => {
+    setSearchOpen(false)
+    router.push(`/chats/${chatId}`)
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -58,7 +64,7 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
   }, [])
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -80,20 +86,21 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          variant="ghost"
-          className="h-8 w-full min-w-0 justify-start gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm font-normal text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        <SidebarMenuButton
+          className="h-8 w-full min-w-0 justify-start gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm font-normal text-muted-foreground transition-colors group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:text-sidebar-foreground hover:bg-muted hover:text-foreground group-data-[collapsible=icon]:hover:bg-sidebar-accent group-data-[collapsible=icon]:hover:text-sidebar-accent-foreground"
           onClick={() => setSearchOpen(true)}
+          tooltip="Search"
         >
           <SearchIcon />
-          <span>Search</span>
-          <CommandShortcut>⌘K</CommandShortcut>
-        </Button>
+          <span className="group-data-[collapsible=icon]:hidden">Search</span>
+          <CommandShortcut className="group-data-[collapsible=icon]:hidden">
+            ⌘K
+          </CommandShortcut>
+        </SidebarMenuButton>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Chats</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {chats.map((chat) => (
@@ -102,10 +109,11 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
                     size="lg"
                     className="h-14 gap-3 px-2"
                     tooltip={chat.name}
+                    onClick={() => navigateToChat(chat.id)}
                   >
                     <ChatAvatar
                       seed={chat.avatarSeed}
-                      className="size-8 shrink-0"
+                      className="size-8 shrink-0 group-data-[collapsible=icon]:size-4"
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
                       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -144,7 +152,7 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
                 <CommandItem
                   key={chat.id}
                   value={`${chat.name} ${chat.preview}`}
-                  onSelect={() => setSearchOpen(false)}
+                  onSelect={() => navigateToChat(chat.id)}
                 >
                   <ChatAvatar
                     seed={chat.avatarSeed}
@@ -172,17 +180,23 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="h-auto p-0 hover:bg-transparent active:bg-transparent"
+              className="group-data-[collapsible=icon]:justify-center"
               render={<div />}
             >
               <UserButton
                 appearance={{
                   elements: {
-                    userButtonBox: "w-full",
+                    userButtonBox:
+                      "w-full group-data-[collapsible=icon]:size-8",
+
                     userButtonTrigger:
-                      "h-8 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    userButtonAvatarBox: "size-6",
-                    userButtonOuterIdentifier: "text-sidebar-foreground",
+                      "h-8 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
+
+                    userButtonAvatarBox:
+                      "size-6 shrink-0 group-data-[collapsible=icon]:size-4",
+
+                    userButtonOuterIdentifier:
+                      "text-sidebar-foreground group-data-[collapsible=icon]:hidden",
                   },
                 }}
                 showName
@@ -191,6 +205,7 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
       <BotDialog
         open={botDialogOpen}
         onOpenChange={setBotDialogOpen}
