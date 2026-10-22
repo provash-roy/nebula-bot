@@ -1,8 +1,11 @@
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
+import { auth } from "@clerk/nextjs/server"
 
 import { Button } from "@/components/ui/button"
 
-export default function Page() {
+export default async function Page() {
+  await auth.protect()
+
   return (
     <div className="flex min-h-svh flex-col p-6">
       <header className="flex justify-end gap-2">

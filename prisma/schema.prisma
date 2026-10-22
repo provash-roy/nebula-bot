@@ -15,6 +15,12 @@ model Todo {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+enum ChatKind {
+  direct
+  group
+}
+
 model Bot {
   id           String   @id @default(cuid())
   userId       String
@@ -25,6 +31,37 @@ model Bot {
   sandboxId    String?
   createdAt    DateTime @default(now())
 
+  members      ChatMember[]
+
   @@index([userId])
   @@map("bots")
+}
+
+
+model Chat {
+  id                String        @id @default(cuid())
+  userId            String
+  kind              ChatKind      @default(direct)
+  name              String?
+  lastMessagePreview String?
+  lastMessageAt     DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+
+  members           ChatMember[]
+
+  @@index([userId])
+  @@map("chats")
+}
+
+model ChatMember {
+  chatId   String   @map("chatId")
+  botId    String
+  joinedAt DateTime @default(now())
+
+  chat     Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  bot      Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@id([chatId, botId])
+  @@index([botId])
+  @@map("chatMembers")
 }
