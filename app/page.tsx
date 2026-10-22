@@ -1,9 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
-import { PlusIcon } from "lucide-react"
 import { randomUUID } from "node:crypto"
 
+import { BotDialog } from "@/components/bot-dialog"
 import { ChatAvatar } from "@/components/chat-avatar"
-import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -30,10 +29,7 @@ export default async function Page() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button size="lg" className="h-11 rounded-xl px-4 text-base">
-          <PlusIcon data-icon="inline-start" />
-          Create a new bot
-        </Button>
+        <BotDialog />
       </EmptyContent>
     </Empty>
   )
