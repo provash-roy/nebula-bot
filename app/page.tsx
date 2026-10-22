@@ -1,37 +1,40 @@
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
 import { auth } from "@clerk/nextjs/server"
+import { PlusIcon } from "lucide-react"
+import { randomUUID } from "node:crypto"
 
+import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 
 export default async function Page() {
   await auth.protect()
+  const avatarSeed = randomUUID()
 
   return (
-    <div className="flex min-h-svh flex-col p-6">
-      <header className="flex justify-end gap-2">
-        <Show when="signed-out">
-          <SignInButton mode="redirect">
-            <Button variant="outline">Sign in</Button>
-          </SignInButton>
-          <SignUpButton mode="redirect">
-            <Button>Create account</Button>
-          </SignUpButton>
-        </Show>
-        <Show when="signed-in">
-          <UserButton />
-        </Show>
-      </header>
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
+    <Empty className="min-h-svh gap-5 border-0 p-6">
+      <EmptyHeader className="max-w-xl">
+        <EmptyMedia className="mb-2">
+          <ChatAvatar seed={avatarSeed} className="size-12" />
+        </EmptyMedia>
+        <EmptyTitle className="text-lg">Meet your first bot</EmptyTitle>
+        <EmptyDescription className="text-lg">
+          Every bot gets its own personality, memory, and face. Spin one up and
+          start the conversation.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button size="lg" className="h-11 rounded-xl px-4 text-base">
+          <PlusIcon data-icon="inline-start" />
+          Create a new bot
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
