@@ -22,7 +22,13 @@ export async function getUserChatById(chatId: string) {
         take: 1,
         select: {
           bot: {
-            select: { name: true, avatar: true },
+            select: {
+              id: true,
+              name: true,
+              avatar: true,
+              job: true,
+              instructions: true,
+            },
           },
         },
       },
@@ -39,5 +45,11 @@ export async function getUserChatById(chatId: string) {
     id: chat.id,
     name: chat.name ?? bot?.name ?? "New chat",
     avatar: bot?.avatar ?? chat.id,
+    bot: bot
+      ? {
+          ...bot,
+          chatId: chat.id,
+        }
+      : null,
   }
 }

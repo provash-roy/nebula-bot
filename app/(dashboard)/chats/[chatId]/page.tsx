@@ -17,7 +17,7 @@ export default async function ChatPage({
 
   return (
     <>
-      <ChatHeader name={chat.name} avatar={chat.avatar} />
+      <ChatHeader name={chat.name} avatar={chat.avatar} bot={chat.bot} />
       <p>{chatId}</p>
     </>
   )
