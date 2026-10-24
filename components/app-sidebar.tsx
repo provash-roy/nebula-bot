@@ -2,7 +2,7 @@
 
 import { UserButton } from "@clerk/nextjs"
 import { PlusIcon, SearchIcon, UsersRoundIcon } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { BotDialog } from "@/components/bot-dialog"
@@ -40,6 +40,7 @@ import type { UserChatSummary } from "@/queries/bots"
 export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
   const [botDialogOpen, setBotDialogOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const pathname = usePathname()
   const router = useRouter()
 
   const navigateToChat = (chatId: string) => {
@@ -108,6 +109,10 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
                   <SidebarMenuButton
                     size="lg"
                     className="h-14 gap-3 px-2"
+                    isActive={pathname === `/chats/${chat.id}`}
+                    aria-current={
+                      pathname === `/chats/${chat.id}` ? "page" : undefined
+                    }
                     tooltip={chat.name}
                     onClick={() => navigateToChat(chat.id)}
                   >
