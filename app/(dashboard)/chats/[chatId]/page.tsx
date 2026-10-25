@@ -19,7 +19,7 @@ export default async function ChatPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ChatHeader name={chat.name} avatar={chat.avatar} bot={chat.bot} />
-      <ChatInterface />
+      <ChatInterface chatId={chat.id} />
     </div>
   )
 }

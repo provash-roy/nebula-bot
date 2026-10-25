@@ -17,13 +17,75 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input"
+import {
+  loadChatTranscript,
+  mintChatAccessToken,
+  startChatSession,
+} from "@/actions/chat"
 import { useChat } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import { MessageSquare } from "lucide-react"
 import { useState } from "react"
+import {
+  useLoadTranscript,
+  useTriggerChatTransport,
+} from "@trigger.dev/sdk/chat/react"
 
-export function ChatInterface() {
+import type { chatAgent } from "@/app/trigger/chat"
+
+export function ChatInterface({ chatId }: { chatId: string }) {
+  const transport = useTriggerChatTransport<typeof chatAgent>({
+    task: "nebula-chat",
+    accessToken: ({ chatId }) => mintChatAccessToken(chatId),
+    startSession: ({ chatId }) => startChatSession({ chatId }),
+  })
+  const {
+    messages: initialMessages,
+    isLoading,
+    error: transcriptError,
+  } = useLoadTranscript(chatId, loadChatTranscript, { transport })
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+        Loading conversation...
+      </div>
+    )
+  }
+
+  if (transcriptError) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive">
+        Failed to load conversation: {transcriptError.message}
+      </p>
+    )
+  }
+
+  return (
+    <ChatConversation
+      key={chatId}
+      chatId={chatId}
+      initialMessages={initialMessages}
+      transport={transport}
+    />
+  )
+}
+
+function ChatConversation({
+  chatId,
+  initialMessages,
+  transport,
+}: {
+  chatId: string
+  initialMessages: UIMessage[]
+  transport: ReturnType<typeof useTriggerChatTransport<typeof chatAgent>>
+}) {
   const [input, setInput] = useState("")
-  const { messages, sendMessage, status, stop, error } = useChat()
+  const { messages, sendMessage, status, stop, error } = useChat({
+    id: chatId,
+    messages: initialMessages,
+    transport,
+  })
 
   const handleSubmit = ({ text }: PromptInputMessage) => {
     if (!text.trim()) {
