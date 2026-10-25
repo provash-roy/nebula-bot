@@ -1,6 +1,6 @@
 "use client"
 
-import { UserButton } from "@clerk/nextjs"
+import dynamic from "next/dynamic"
 import { PlusIcon, SearchIcon, UsersRoundIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -36,6 +36,11 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import type { UserChatSummary } from "@/queries/bots"
+
+const UserButton = dynamic(
+  () => import("@clerk/nextjs").then((clerk) => clerk.UserButton),
+  { ssr: false }
+)
 
 export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
   const [botDialogOpen, setBotDialogOpen] = useState(false)

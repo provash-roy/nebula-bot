@@ -14,35 +14,6 @@ type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
 type CarouselOptions = UseCarouselParameters[0]
 type CarouselPlugin = UseCarouselParameters[1]
 
-function useCarouselBoolean(
-  api: CarouselApi,
-  getSnapshot: (api: NonNullable<CarouselApi>) => boolean
-) {
-  const subscribe = React.useCallback(
-    (onStoreChange: () => void) => {
-      if (!api) return () => {}
-      api.on("reInit", onStoreChange)
-      api.on("select", onStoreChange)
-      return () => {
-        api.off("select", onStoreChange)
-        api.off("reInit", onStoreChange)
-      }
-    },
-    [api]
-  )
-  const getCurrentSnapshot = React.useCallback(
-    () => (api ? getSnapshot(api) : false),
-    [api, getSnapshot]
-  )
-
-  return React.useSyncExternalStore(subscribe, getCurrentSnapshot, () => false)
-}
-
-const getCanScrollPrev = (api: NonNullable<CarouselApi>) =>
-  api.canScrollPrev()
-const getCanScrollNext = (api: NonNullable<CarouselApi>) =>
-  api.canScrollNext()
-
 type CarouselProps = {
   opts?: CarouselOptions
   plugins?: CarouselPlugin
@@ -87,8 +58,14 @@ function Carousel({
     },
     plugins
   )
-  const canScrollPrev = useCarouselBoolean(api, getCanScrollPrev)
-  const canScrollNext = useCarouselBoolean(api, getCanScrollNext)
+  const [canScrollPrev, setCanScrollPrev] = React.useState(false)
+  const [canScrollNext, setCanScrollNext] = React.useState(false)
+
+  const onSelect = React.useCallback((api: CarouselApi) => {
+    if (!api) return
+    setCanScrollPrev(api.canScrollPrev())
+    setCanScrollNext(api.canScrollNext())
+  }, [])
 
   const scrollPrev = React.useCallback(() => {
     api?.scrollPrev()
@@ -115,6 +92,17 @@ function Carousel({
     if (!api || !setApi) return
     setApi(api)
   }, [api, setApi])
+
+  React.useEffect(() => {
+    if (!api) return
+    onSelect(api)
+    api.on("reInit", onSelect)
+    api.on("select", onSelect)
+
+    return () => {
+      api?.off("select", onSelect)
+    }
+  }, [api, onSelect])
 
   return (
     <CarouselContext.Provider

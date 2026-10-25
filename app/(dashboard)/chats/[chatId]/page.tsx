@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { ChatHeader } from "@/components/chat-header"
+import { ChatInterface } from "@/components/chat-interface"
 import { getUserChatById } from "@/queries/chats"
 
 export default async function ChatPage({
@@ -16,9 +17,9 @@ export default async function ChatPage({
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <ChatHeader name={chat.name} avatar={chat.avatar} bot={chat.bot} />
-      <p>{chatId}</p>
-    </>
+      <ChatInterface />
+    </div>
   )
 }
