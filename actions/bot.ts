@@ -3,8 +3,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 
-import { prisma } from "@/lib/prisma"
 import { botInsertSchema, type BotInsert } from "@/db/schema"
+import { getDaytona } from "@/lib/daytona"
+import { prisma } from "@/lib/prisma"
 
 export async function updateBot(
   botId: string,
@@ -46,11 +47,17 @@ export async function deleteBot(botId: string, chatId: string) {
       userId,
       members: { some: { chatId } },
     },
-    select: { id: true },
+    select: { id: true, sandboxId: true },
   })
 
   if (!bot) {
     throw new Error("Bot not found or you do not have permission to delete it")
+  }
+
+  if (bot.sandboxId) {
+    const daytona = getDaytona()
+    const sandbox = await daytona.get(bot.sandboxId)
+    await daytona.delete(sandbox, 60, true)
   }
 
   await prisma.$transaction([
@@ -73,29 +80,47 @@ export async function createBot(values: BotInsert) {
   }
 
   const data = botInsertSchema.parse(values)
-  const bot = await prisma.bot.create({
-    data: {
-      ...data,
-      userId,
-      members: {
-        create: {
-          chat: {
-            create: {
-              userId,
-              kind: "direct",
+  const daytona = getDaytona()
+  const sandbox = await daytona.create()
+
+  let bot
+  try {
+    bot = await prisma.bot.create({
+      data: {
+        ...data,
+        userId,
+        sandboxId: sandbox.id,
+        members: {
+          create: {
+            chat: {
+              create: {
+                userId,
+                kind: "direct",
+              },
             },
           },
         },
       },
-    },
-    include: {
-      members: {
-        include: {
-          chat: true,
+      include: {
+        members: {
+          include: {
+            chat: true,
+          },
         },
       },
-    },
-  })
+    })
+  } catch (error) {
+    try {
+      await daytona.delete(sandbox, 60, true)
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Bot creation failed and its Daytona sandbox could not be cleaned up"
+      )
+    }
+
+    throw error
+  }
 
   revalidatePath("/")
   return bot
