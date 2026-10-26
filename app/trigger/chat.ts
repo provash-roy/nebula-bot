@@ -1,34 +1,34 @@
 import { groq } from "@ai-sdk/groq"
+import { stepCountIs } from "ai"
 import { chat } from "@trigger.dev/sdk/ai"
-import { z } from "zod"
 
-export const chatAgentClientDataSchema = z.object({
-  name: z.string(),
-  job: z.string(),
-  instructions: z.string().nullable(),
-  sandboxId: z.string().nullable(),
-})
+import { createChatTools, getBotForChat } from "./chat-tools"
+
+const tools = ({ chatId }: { chatId: string }) => createChatTools(chatId)
 
 export const chatAgent = chat.agent({
   id: "nebula-chat",
-  clientDataSchema: chatAgentClientDataSchema,
-  run: async ({ messages, clientData, signal, streamText }) => {
-    if (!clientData) {
-      throw new Error("Chat agent context is required")
-    }
+  tools,
+  run: async ({ chatId, messages, tools, signal, streamText }) => {
+    const bot = await getBotForChat(chatId)
 
     return streamText({
-      model: groq("openai/gpt-oss-20b"),
+      model: groq("qwen/qwen3.8-27b"),
       system: [
-        `You are ${clientData.name}, an AI assistant.`,
-        `Your job is ${clientData.job}.`,
-        `Your purpose is ${clientData.instructions?.trim() || `Help the user with your job as ${clientData.job}.`}`,
-        clientData.sandboxId
-          ? `Your dedicated Daytona sandbox has ID ${clientData.sandboxId}. It has been provisioned but has not been started or inspected, and you are not executing inside it. Do not imply you can access it or assume anything about its files, installed software, processes, or current runtime state.`
-          : "A dedicated Daytona sandbox has not been assigned to this bot yet.",
+        `You are ${bot?.name ?? "Nebula"}, an AI assistant.`,
+        `Your job is ${bot?.job ?? "help the user with their requests"}.`,
+        `Your purpose is ${bot?.instructions?.trim() || `Help the user with your job as ${bot?.job ?? "an assistant"}.`}`,
+        bot?.sandboxId
+          ? "You can operate only the Daytona sandbox assigned to this chat using the available tools. Do not assume its current state or claim an action succeeded unless a tool confirms it."
+          : "No Daytona sandbox is assigned to this chat. Do not claim to have used a sandbox.",
+        "Use view_screen to inspect the display privately. Use show_screen only when the user explicitly asks to see the display.",
+        "Do not expose secrets found in files or command output; redact them and summarize only what is needed.",
+        "Only access systems and data the user has authorized. Do not use computer or shell access for unauthorized intrusion, credential theft, or evasion.",
       ].join("\n\n"),
       messages,
+      tools,
       abortSignal: signal,
+      stopWhen: stepCountIs(10),
     })
   },
 })
