@@ -9,8 +9,30 @@ export type UserChatSummary = {
   id: string
   name: string
   preview: string
-  avatarSeed: string
+  kind: "direct" | "group"
+  avatarSeeds: string[]
   lastMessageLabel: string
+}
+
+export type UserBotOption = {
+  id: string
+  name: string
+  avatar: string
+}
+
+export async function getUserBots(): Promise<UserBotOption[]> {
+  await auth.protect()
+  const { userId } = await auth()
+
+  if (!userId) {
+    throw new Error("Authenticated user ID is unavailable")
+  }
+
+  return prisma.bot.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, avatar: true },
+  })
 }
 
 export async function getUserChats(): Promise<UserChatSummary[]> {
@@ -34,7 +56,6 @@ export async function getUserChats(): Promise<UserChatSummary[]> {
         members: {
           where: { bot: { userId } },
           orderBy: { joinedAt: "asc" },
-          take: 1,
           include: {
             bot: {
               select: { name: true, avatar: true, job: true },
@@ -52,7 +73,11 @@ export async function getUserChats(): Promise<UserChatSummary[]> {
       id: chat.id,
       name: chat.name ?? bot?.name ?? "New chat",
       preview: chat.lastMessagePreview ?? bot?.job ?? "No messages yet",
-      avatarSeed: bot?.avatar ?? chat.id,
+      kind: chat.kind,
+      avatarSeeds:
+        chat.kind === "group"
+          ? chat.members.map((member) => member.bot.avatar)
+          : [bot?.avatar ?? chat.id],
       lastMessageLabel: formatDistanceToNowStrict(chat.lastMessageAt),
     }
   })

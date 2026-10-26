@@ -21,3 +21,20 @@ export const botInsertSchema = z.object({
 
 export type BotInsert = z.infer<typeof botInsertSchema>
 export type BotInsertInput = z.input<typeof botInsertSchema>
+
+export const groupChatInsertSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a name for this group chat.")
+    .max(40, "Group chat names must be 40 characters or fewer."),
+  botIds: z
+    .array(z.string().min(1))
+    .min(2, "Choose at least two bots.")
+    .refine((botIds) => new Set(botIds).size === botIds.length, {
+      message: "Each bot can only be selected once.",
+    }),
+})
+
+export type GroupChatInsert = z.infer<typeof groupChatInsertSchema>
+export type GroupChatInsertInput = z.input<typeof groupChatInsertSchema>

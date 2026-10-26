@@ -21,10 +21,15 @@ import {
 } from "@/components/ai-elements/tool"
 import {
   PromptInput,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuItem,
+  PromptInputActionMenuTrigger,
   type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input"
+import { DropdownMenuGroup } from "@/components/ui/dropdown-menu"
 import {
   loadChatTranscript,
   mintChatAccessToken,
@@ -32,7 +37,7 @@ import {
 } from "@/actions/chat"
 import { useChat } from "@ai-sdk/react"
 import type { UIMessage } from "ai"
-import { MessageSquare } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, MessageSquare } from "lucide-react"
 import Image from "next/image"
 import { useState } from "react"
 import {
@@ -41,8 +46,19 @@ import {
 } from "@trigger.dev/sdk/chat/react"
 
 import type { chatAgent } from "@/app/trigger/chat"
+import { ChatAvatar } from "@/components/chat-avatar"
 
-export function ChatInterface({ chatId }: { chatId: string }) {
+type ChatBot = { id: string; name: string; avatar: string }
+
+export function ChatInterface({
+  chatId,
+  kind,
+  bots,
+}: {
+  chatId: string
+  kind: "direct" | "group"
+  bots: ChatBot[]
+}) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "nebula-chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
@@ -74,6 +90,8 @@ export function ChatInterface({ chatId }: { chatId: string }) {
     <ChatConversation
       key={chatId}
       chatId={chatId}
+      kind={kind}
+      bots={bots}
       initialMessages={initialMessages}
       transport={transport}
     />
@@ -82,14 +100,20 @@ export function ChatInterface({ chatId }: { chatId: string }) {
 
 function ChatConversation({
   chatId,
+  kind,
+  bots,
   initialMessages,
   transport,
 }: {
   chatId: string
+  kind: "direct" | "group"
+  bots: ChatBot[]
   initialMessages: UIMessage[]
   transport: ReturnType<typeof useTriggerChatTransport<typeof chatAgent>>
 }) {
   const [input, setInput] = useState("")
+  const [selectedBotId, setSelectedBotId] = useState(bots[0]?.id ?? "")
+  const selectedBot = bots.find((bot) => bot.id === selectedBotId)
   const { messages, sendMessage, status, stop, error } = useChat({
     id: chatId,
     messages: initialMessages,
@@ -101,7 +125,10 @@ function ChatConversation({
       return
     }
 
-    void sendMessage({ text })
+    void sendMessage(
+      { text },
+      kind === "group" ? { metadata: { botId: selectedBotId } } : undefined
+    )
     setInput("")
   }
 
@@ -116,29 +143,55 @@ function ChatConversation({
               description="Send a message to start chatting."
             />
           ) : (
-            messages.map((message) => (
-              <Message from={message.role} key={message.id}>
-                <MessageContent>
-                  {message.parts.map((part, index) => {
-                    if (part.type === "text") {
-                      return (
-                        <MessageResponse key={`${message.id}-${index}`}>
-                          {part.text}
-                        </MessageResponse>
-                      )
-                    }
+            messages.map((message) => {
+              const responder = bots.find(
+                (bot) => bot.id === getMessageBotId(message)
+              )
 
-                    if (isToolPart(part)) {
-                      return (
-                        <ChatTool key={`${message.id}-${index}`} part={part} />
-                      )
-                    }
+              return (
+                <div
+                  key={message.id}
+                  className={
+                    kind === "group" && message.role === "assistant"
+                      ? "flex items-end gap-2"
+                      : undefined
+                  }
+                >
+                  {kind === "group" &&
+                    message.role === "assistant" &&
+                    responder && (
+                      <ChatAvatar
+                        seed={responder.avatar}
+                        className="size-6 shrink-0"
+                      />
+                    )}
+                  <Message from={message.role}>
+                    <MessageContent>
+                      {message.parts.map((part, index) => {
+                        if (part.type === "text") {
+                          return (
+                            <MessageResponse key={`${message.id}-${index}`}>
+                              {part.text}
+                            </MessageResponse>
+                          )
+                        }
 
-                    return null
-                  })}
-                </MessageContent>
-              </Message>
-            ))
+                        if (isToolPart(part)) {
+                          return (
+                            <ChatTool
+                              key={`${message.id}-${index}`}
+                              part={part}
+                            />
+                          )
+                        }
+
+                        return null
+                      })}
+                    </MessageContent>
+                  </Message>
+                </div>
+              )
+            })
           )}
         </ConversationContent>
         <ConversationScrollButton />
@@ -150,6 +203,42 @@ function ChatConversation({
           onChange={(event) => setInput(event.currentTarget.value)}
           placeholder="Message..."
         />
+        {kind === "group" && (
+          <PromptInputActionMenu>
+            <PromptInputActionMenuTrigger
+              aria-label={`Choose bot. Current bot: ${selectedBot?.name ?? "Unknown"}`}
+              className="max-w-40"
+            >
+              <ChatAvatar
+                seed={selectedBot?.avatar ?? ""}
+                className="size-5 shrink-0"
+              />
+              <span className="truncate">
+                {selectedBot?.name ?? "Choose bot"}
+              </span>
+              <ChevronDownIcon data-icon="inline-end" />
+            </PromptInputActionMenuTrigger>
+            <PromptInputActionMenuContent>
+              <DropdownMenuGroup>
+                {bots.map((bot) => (
+                  <PromptInputActionMenuItem
+                    key={bot.id}
+                    onClick={() => setSelectedBotId(bot.id)}
+                  >
+                    <ChatAvatar
+                      seed={bot.avatar}
+                      className="size-5 shrink-0"
+                    />
+                    <span>{bot.name}</span>
+                    {bot.id === selectedBotId && (
+                      <CheckIcon className="ml-auto" />
+                    )}
+                  </PromptInputActionMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </PromptInputActionMenuContent>
+          </PromptInputActionMenu>
+        )}
         <PromptInputSubmit
           status={status}
           onStop={stop}
@@ -165,6 +254,19 @@ function ChatConversation({
       )}
     </div>
   )
+}
+
+function getMessageBotId(message: UIMessage) {
+  const metadata: unknown = message.metadata
+
+  if (
+    typeof metadata === "object" &&
+    metadata !== null &&
+    "botId" in metadata &&
+    typeof metadata.botId === "string"
+  ) {
+    return metadata.botId
+  }
 }
 
 function isToolPart(part: UIMessage["parts"][number]): part is ToolPart {

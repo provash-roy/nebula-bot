@@ -2,6 +2,7 @@ import { Daytona, SandboxState } from "@daytona/sdk"
 import { tool } from "ai"
 import { z } from "zod"
 
+import { getDaytonaConfig } from "@/lib/daytona-config"
 import { prisma } from "@/lib/prisma-client"
 
 const MAX_COMMAND_OUTPUT = 12_000
@@ -11,20 +12,22 @@ const MAX_SCREENSHOT_BYTES = 450_000
 let daytona: Daytona | undefined
 
 function getDaytona() {
-  daytona ??= new Daytona()
+  daytona ??= new Daytona(getDaytonaConfig())
   return daytona
 }
 
-export async function getBotForChat(chatId: string) {
+export async function getBotForChat(chatId: string, botId?: string) {
   const chat = await prisma.chat.findUnique({
     where: { id: chatId },
     select: {
       userId: true,
+      kind: true,
       members: {
         orderBy: { joinedAt: "asc" },
         select: {
           bot: {
             select: {
+              id: true,
               userId: true,
               name: true,
               job: true,
@@ -37,14 +40,22 @@ export async function getBotForChat(chatId: string) {
     },
   })
 
-  return (
-    chat?.members.find((member) => member.bot.userId === chat.userId)?.bot ??
-    null
-  )
+  if (!chat) {
+    return null
+  }
+
+  const bot = botId
+    ? chat.members.find(
+        (member) =>
+          member.bot.id === botId && member.bot.userId === chat.userId
+      )?.bot
+    : chat.members.find((member) => member.bot.userId === chat.userId)?.bot
+
+  return bot ? { ...bot, kind: chat.kind } : null
 }
 
-async function getChatSandbox(chatId: string) {
-  const bot = await getBotForChat(chatId)
+async function getChatSandbox(chatId: string, botId?: string) {
+  const bot = await getBotForChat(chatId, botId)
 
   if (!bot?.sandboxId) {
     throw new Error("No Daytona sandbox is assigned to this chat")
@@ -66,8 +77,8 @@ async function getChatSandbox(chatId: string) {
   return sandbox
 }
 
-async function ensureComputerUseStarted(chatId: string) {
-  const sandbox = await getChatSandbox(chatId)
+async function ensureComputerUseStarted(chatId: string, botId?: string) {
+  const sandbox = await getChatSandbox(chatId, botId)
   const { status } = await sandbox.computerUse.getStatus()
 
   if (status?.toLowerCase() !== "running") {
@@ -77,8 +88,8 @@ async function ensureComputerUseStarted(chatId: string) {
   return sandbox
 }
 
-async function captureScreen(chatId: string) {
-  const sandbox = await ensureComputerUseStarted(chatId)
+async function captureScreen(chatId: string, botId?: string) {
+  const sandbox = await ensureComputerUseStarted(chatId, botId)
   const screenshot = await sandbox.computerUse.screenshot.takeCompressed({
     format: "jpeg",
     quality: 55,
@@ -118,7 +129,7 @@ function screenshotForModel({
   }
 }
 
-export function createChatTools(chatId: string) {
+export function createChatTools(chatId: string, botId?: string) {
   return {
     bash: tool({
       description:
@@ -129,7 +140,7 @@ export function createChatTools(chatId: string) {
         timeoutSeconds: z.number().int().min(1).max(120).default(30),
       }),
       execute: async ({ command, cwd, timeoutSeconds }) => {
-        const sandbox = await getChatSandbox(chatId)
+        const sandbox = await getChatSandbox(chatId, botId)
         const result = await sandbox.process.executeCommand(
           command,
           cwd,
@@ -152,7 +163,7 @@ export function createChatTools(chatId: string) {
         "Read a UTF-8 text file in this chat bot's dedicated Daytona sandbox.",
       inputSchema: z.object({ path: z.string().min(1).max(1_000) }),
       execute: async ({ path }) => {
-        const sandbox = await getChatSandbox(chatId)
+        const sandbox = await getChatSandbox(chatId, botId)
         const details = await sandbox.fs.getFileDetails(path)
 
         if (details.isDir) {
@@ -174,7 +185,7 @@ export function createChatTools(chatId: string) {
         contents: z.string().max(MAX_FILE_BYTES),
       }),
       execute: async ({ path, contents }) => {
-        const sandbox = await getChatSandbox(chatId)
+        const sandbox = await getChatSandbox(chatId, botId)
         await sandbox.fs.uploadFile(Buffer.from(contents, "utf8"), path, 30)
         return { path, bytesWritten: Buffer.byteLength(contents, "utf8") }
       },
@@ -187,7 +198,7 @@ export function createChatTools(chatId: string) {
         depth: z.number().int().min(1).max(3).default(2),
       }),
       execute: async ({ path, depth }) => {
-        const sandbox = await getChatSandbox(chatId)
+        const sandbox = await getChatSandbox(chatId, botId)
         const files = await sandbox.fs.listFiles(path, { depth })
 
         return files.slice(0, 100).map((file) => ({
@@ -207,7 +218,7 @@ export function createChatTools(chatId: string) {
         button: z.enum(["left", "right", "middle"]).default("left"),
       }),
       execute: async ({ x, y, button }) => {
-        const sandbox = await ensureComputerUseStarted(chatId)
+        const sandbox = await ensureComputerUseStarted(chatId, botId)
         await sandbox.computerUse.mouse.click(x, y, button)
         return { clicked: true, x, y, button }
       },
@@ -220,7 +231,7 @@ export function createChatTools(chatId: string) {
         y: z.number().int().min(0).max(16_384),
       }),
       execute: async ({ x, y }) => {
-        const sandbox = await ensureComputerUseStarted(chatId)
+        const sandbox = await ensureComputerUseStarted(chatId, botId)
         return sandbox.computerUse.mouse.move(x, y)
       },
     }),
@@ -233,7 +244,7 @@ export function createChatTools(chatId: string) {
         amount: z.number().int().min(1).max(20).default(3),
       }),
       execute: async ({ x, y, direction, amount }) => {
-        const sandbox = await ensureComputerUseStarted(chatId)
+        const sandbox = await ensureComputerUseStarted(chatId, botId)
         await sandbox.computerUse.mouse.scroll(x, y, direction, amount)
         return { scrolled: true, x, y, direction, amount }
       },
@@ -243,7 +254,7 @@ export function createChatTools(chatId: string) {
         "Type text into the focused application in the sandbox desktop.",
       inputSchema: z.object({ text: z.string().max(2_000) }),
       execute: async ({ text }) => {
-        const sandbox = await ensureComputerUseStarted(chatId)
+        const sandbox = await ensureComputerUseStarted(chatId, botId)
         await sandbox.computerUse.keyboard.type(text)
         return { typed: true }
       },
@@ -258,7 +269,7 @@ export function createChatTools(chatId: string) {
           .default([]),
       }),
       execute: async ({ key, modifiers }) => {
-        const sandbox = await ensureComputerUseStarted(chatId)
+        const sandbox = await ensureComputerUseStarted(chatId, botId)
         await sandbox.computerUse.keyboard.press(key, modifiers)
         return { pressed: true, key, modifiers }
       },
@@ -267,14 +278,14 @@ export function createChatTools(chatId: string) {
       description:
         "Inspect the sandbox screen privately for reasoning. Do not show the screenshot in chat.",
       inputSchema: z.object({ reason: z.string().optional() }),
-      execute: () => captureScreen(chatId),
+      execute: () => captureScreen(chatId, botId),
       toModelOutput: screenshotForModel,
     }),
     show_screen: tool({
       description:
         "Capture the sandbox screen for the user when they explicitly ask to see what is on screen.",
       inputSchema: z.object({ reason: z.string().optional() }),
-      execute: () => captureScreen(chatId),
+      execute: () => captureScreen(chatId, botId),
       toModelOutput: screenshotForModel,
     }),
   }

@@ -1,16 +1,48 @@
 import { groq } from "@ai-sdk/groq"
 import { stepCountIs } from "ai"
 import { chat } from "@trigger.dev/sdk/ai"
+import { z } from "zod"
 
 import { createChatTools, getBotForChat } from "./chat-tools"
 
-const tools = ({ chatId }: { chatId: string }) => createChatTools(chatId)
+const tools = ({
+  chatId,
+  clientData,
+}: {
+  chatId: string
+  clientData?: { botId?: string }
+}) => createChatTools(chatId, clientData?.botId)
 
 export const chatAgent = chat.agent({
   id: "nebula-chat",
+  clientDataSchema: z.object({ botId: z.string().optional() }).optional(),
   tools,
-  run: async ({ chatId, messages, tools, signal, streamText }) => {
-    const bot = await getBotForChat(chatId)
+  run: async ({
+    chatId,
+    clientData,
+    trigger,
+    messages,
+    tools,
+    signal,
+    streamText,
+  }) => {
+    const bot = await getBotForChat(chatId, clientData?.botId)
+
+    if (!bot) {
+      throw new Error("The selected bot is not a member of this chat")
+    }
+
+    if (
+      bot.kind === "group" &&
+      trigger === "submit-message" &&
+      !clientData?.botId
+    ) {
+      throw new Error("Choose a bot before sending a group chat message")
+    }
+
+    chat.setUIMessageStreamOptions({
+      messageMetadata: () => ({ botId: bot.id }),
+    })
 
     return streamText({
       model: groq("qwen/qwen3.8-27b"),

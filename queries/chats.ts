@@ -17,9 +17,10 @@ export async function getUserChatById(chatId: string) {
     select: {
       id: true,
       name: true,
+      kind: true,
       members: {
+        where: { bot: { userId } },
         orderBy: { joinedAt: "asc" },
-        take: 1,
         select: {
           bot: {
             select: {
@@ -39,12 +40,15 @@ export async function getUserChatById(chatId: string) {
     return null
   }
 
-  const bot = chat.members[0]?.bot
+  const bots = chat.members.map((member) => member.bot)
+  const bot = bots[0]
 
   return {
     id: chat.id,
     name: chat.name ?? bot?.name ?? "New chat",
     avatar: bot?.avatar ?? chat.id,
+    kind: chat.kind,
+    bots: bots.map(({ id, name, avatar }) => ({ id, name, avatar })),
     bot: bot
       ? {
           ...bot,

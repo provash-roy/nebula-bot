@@ -7,6 +7,8 @@ import { useEffect, useState } from "react"
 
 import { BotDialog } from "@/components/bot-dialog"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { GroupChatAvatar } from "@/components/group-chat-avatar"
+import { GroupChatDialog } from "@/components/group-chat-dialog"
 import {
   Command,
   CommandDialog,
@@ -35,15 +37,22 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import type { UserChatSummary } from "@/queries/bots"
+import type { UserBotOption, UserChatSummary } from "@/queries/bots"
 
 const UserButton = dynamic(
   () => import("@clerk/nextjs").then((clerk) => clerk.UserButton),
   { ssr: false }
 )
 
-export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
+export function AppSidebar({
+  chats,
+  bots,
+}: {
+  chats: UserChatSummary[]
+  bots: UserBotOption[]
+}) {
   const [botDialogOpen, setBotDialogOpen] = useState(false)
+  const [groupChatDialogOpen, setGroupChatDialogOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -86,7 +95,7 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
               <PlusIcon />
               Create new bot
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setGroupChatDialogOpen(true)}>
               <UsersRoundIcon />
               Create group chat
             </DropdownMenuItem>
@@ -121,10 +130,17 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
                     tooltip={chat.name}
                     onClick={() => navigateToChat(chat.id)}
                   >
-                    <ChatAvatar
-                      seed={chat.avatarSeed}
-                      className="size-8 shrink-0 group-data-[collapsible=icon]:size-4"
-                    />
+                    {chat.kind === "group" ? (
+                      <GroupChatAvatar
+                        avatarSeeds={chat.avatarSeeds}
+                        className="size-8 group-data-[collapsible=icon]:size-4"
+                      />
+                    ) : (
+                      <ChatAvatar
+                        seed={chat.avatarSeeds[0]}
+                        className="size-8 shrink-0 group-data-[collapsible=icon]:size-4"
+                      />
+                    )}
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
                       <div className="flex min-w-0 items-center justify-between gap-2">
                         <span className="truncate font-medium">
@@ -164,10 +180,17 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
                   value={`${chat.name} ${chat.preview}`}
                   onSelect={() => navigateToChat(chat.id)}
                 >
-                  <ChatAvatar
-                    seed={chat.avatarSeed}
-                    className="size-8 shrink-0"
-                  />
+                  {chat.kind === "group" ? (
+                    <GroupChatAvatar
+                      avatarSeeds={chat.avatarSeeds}
+                      className="size-8"
+                    />
+                  ) : (
+                    <ChatAvatar
+                      seed={chat.avatarSeeds[0]}
+                      className="size-8 shrink-0"
+                    />
+                  )}
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center justify-between gap-2">
                       <span className="truncate font-medium">{chat.name}</span>
@@ -220,6 +243,11 @@ export function AppSidebar({ chats }: { chats: UserChatSummary[] }) {
         open={botDialogOpen}
         onOpenChange={setBotDialogOpen}
         showTrigger={false}
+      />
+      <GroupChatDialog
+        bots={bots}
+        open={groupChatDialogOpen}
+        onOpenChange={setGroupChatDialogOpen}
       />
     </Sidebar>
   )
