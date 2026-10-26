@@ -47,6 +47,7 @@ import {
 
 import type { chatAgent } from "@/app/trigger/chat"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { Badge } from "@/components/ui/badge"
 
 type ChatBot = { id: string; name: string; avatar: string }
 
@@ -167,6 +168,20 @@ function ChatConversation({
                     )}
                   <Message from={message.role}>
                     <MessageContent>
+                      {kind === "group" &&
+                        message.role === "user" &&
+                        responder && (
+                          <Badge
+                            variant="secondary"
+                            className="mb-2 gap-1.5 px-1.5"
+                          >
+                            <ChatAvatar
+                              seed={responder.avatar}
+                              className="size-4"
+                            />
+                            {responder.name}
+                          </Badge>
+                        )}
                       {message.parts.map((part, index) => {
                         if (part.type === "text") {
                           return (
@@ -198,11 +213,6 @@ function ChatConversation({
       </Conversation>
 
       <PromptInput onSubmit={handleSubmit} className="mt-4">
-        <PromptInputTextarea
-          value={input}
-          onChange={(event) => setInput(event.currentTarget.value)}
-          placeholder="Message..."
-        />
         {kind === "group" && (
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger
@@ -239,6 +249,11 @@ function ChatConversation({
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
         )}
+        <PromptInputTextarea
+          value={input}
+          onChange={(event) => setInput(event.currentTarget.value)}
+          placeholder="Message..."
+        />
         <PromptInputSubmit
           status={status}
           onStop={stop}

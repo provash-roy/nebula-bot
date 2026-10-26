@@ -54,6 +54,37 @@ export async function getBotForChat(chatId: string, botId?: string) {
   return bot ? { ...bot, kind: chat.kind } : null
 }
 
+export async function getGroupBotsForChat(chatId: string) {
+  const chat = await prisma.chat.findUnique({
+    where: { id: chatId },
+    select: {
+      userId: true,
+      kind: true,
+      members: {
+        orderBy: { joinedAt: "asc" },
+        select: {
+          bot: {
+            select: {
+              id: true,
+              userId: true,
+              name: true,
+              job: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!chat || chat.kind !== "group") {
+    throw new Error("Group chat not found")
+  }
+
+  return chat.members
+    .filter((member) => member.bot.userId === chat.userId)
+    .map(({ bot }) => ({ id: bot.id, name: bot.name, job: bot.job }))
+}
+
 async function getChatSandbox(chatId: string, botId?: string) {
   const bot = await getBotForChat(chatId, botId)
 
@@ -129,7 +160,15 @@ function screenshotForModel({
   }
 }
 
-export function createChatTools(chatId: string, botId?: string) {
+export function createChatTools(
+  chatId: string,
+  botId?: string,
+  allowHandoff = false
+) {
+  let activeBotId = botId
+  let hasHandedOff = false
+  const getActiveBotId = () => activeBotId
+
   return {
     bash: tool({
       description:
@@ -140,7 +179,7 @@ export function createChatTools(chatId: string, botId?: string) {
         timeoutSeconds: z.number().int().min(1).max(120).default(30),
       }),
       execute: async ({ command, cwd, timeoutSeconds }) => {
-        const sandbox = await getChatSandbox(chatId, botId)
+        const sandbox = await getChatSandbox(chatId, getActiveBotId())
         const result = await sandbox.process.executeCommand(
           command,
           cwd,
@@ -163,7 +202,7 @@ export function createChatTools(chatId: string, botId?: string) {
         "Read a UTF-8 text file in this chat bot's dedicated Daytona sandbox.",
       inputSchema: z.object({ path: z.string().min(1).max(1_000) }),
       execute: async ({ path }) => {
-        const sandbox = await getChatSandbox(chatId, botId)
+        const sandbox = await getChatSandbox(chatId, getActiveBotId())
         const details = await sandbox.fs.getFileDetails(path)
 
         if (details.isDir) {
@@ -185,7 +224,7 @@ export function createChatTools(chatId: string, botId?: string) {
         contents: z.string().max(MAX_FILE_BYTES),
       }),
       execute: async ({ path, contents }) => {
-        const sandbox = await getChatSandbox(chatId, botId)
+        const sandbox = await getChatSandbox(chatId, getActiveBotId())
         await sandbox.fs.uploadFile(Buffer.from(contents, "utf8"), path, 30)
         return { path, bytesWritten: Buffer.byteLength(contents, "utf8") }
       },
@@ -198,7 +237,7 @@ export function createChatTools(chatId: string, botId?: string) {
         depth: z.number().int().min(1).max(3).default(2),
       }),
       execute: async ({ path, depth }) => {
-        const sandbox = await getChatSandbox(chatId, botId)
+        const sandbox = await getChatSandbox(chatId, getActiveBotId())
         const files = await sandbox.fs.listFiles(path, { depth })
 
         return files.slice(0, 100).map((file) => ({
@@ -218,7 +257,10 @@ export function createChatTools(chatId: string, botId?: string) {
         button: z.enum(["left", "right", "middle"]).default("left"),
       }),
       execute: async ({ x, y, button }) => {
-        const sandbox = await ensureComputerUseStarted(chatId, botId)
+        const sandbox = await ensureComputerUseStarted(
+          chatId,
+          getActiveBotId()
+        )
         await sandbox.computerUse.mouse.click(x, y, button)
         return { clicked: true, x, y, button }
       },
@@ -231,7 +273,10 @@ export function createChatTools(chatId: string, botId?: string) {
         y: z.number().int().min(0).max(16_384),
       }),
       execute: async ({ x, y }) => {
-        const sandbox = await ensureComputerUseStarted(chatId, botId)
+        const sandbox = await ensureComputerUseStarted(
+          chatId,
+          getActiveBotId()
+        )
         return sandbox.computerUse.mouse.move(x, y)
       },
     }),
@@ -244,7 +289,10 @@ export function createChatTools(chatId: string, botId?: string) {
         amount: z.number().int().min(1).max(20).default(3),
       }),
       execute: async ({ x, y, direction, amount }) => {
-        const sandbox = await ensureComputerUseStarted(chatId, botId)
+        const sandbox = await ensureComputerUseStarted(
+          chatId,
+          getActiveBotId()
+        )
         await sandbox.computerUse.mouse.scroll(x, y, direction, amount)
         return { scrolled: true, x, y, direction, amount }
       },
@@ -254,7 +302,10 @@ export function createChatTools(chatId: string, botId?: string) {
         "Type text into the focused application in the sandbox desktop.",
       inputSchema: z.object({ text: z.string().max(2_000) }),
       execute: async ({ text }) => {
-        const sandbox = await ensureComputerUseStarted(chatId, botId)
+        const sandbox = await ensureComputerUseStarted(
+          chatId,
+          getActiveBotId()
+        )
         await sandbox.computerUse.keyboard.type(text)
         return { typed: true }
       },
@@ -269,7 +320,10 @@ export function createChatTools(chatId: string, botId?: string) {
           .default([]),
       }),
       execute: async ({ key, modifiers }) => {
-        const sandbox = await ensureComputerUseStarted(chatId, botId)
+        const sandbox = await ensureComputerUseStarted(
+          chatId,
+          getActiveBotId()
+        )
         await sandbox.computerUse.keyboard.press(key, modifiers)
         return { pressed: true, key, modifiers }
       },
@@ -278,15 +332,49 @@ export function createChatTools(chatId: string, botId?: string) {
       description:
         "Inspect the sandbox screen privately for reasoning. Do not show the screenshot in chat.",
       inputSchema: z.object({ reason: z.string().optional() }),
-      execute: () => captureScreen(chatId, botId),
+      execute: () => captureScreen(chatId, getActiveBotId()),
       toModelOutput: screenshotForModel,
     }),
     show_screen: tool({
       description:
         "Capture the sandbox screen for the user when they explicitly ask to see what is on screen.",
       inputSchema: z.object({ reason: z.string().optional() }),
-      execute: () => captureScreen(chatId, botId),
+      execute: () => captureScreen(chatId, getActiveBotId()),
       toModelOutput: screenshotForModel,
     }),
+    ...(allowHandoff
+      ? {
+          handoff: tool({
+            description:
+              "Hand the current response to a group member whose expertise better fits the user's request. Choose a member from the group roster by bot ID. Only hand off when another bot is clearly better suited.",
+            inputSchema: z.object({
+              botId: z.string().min(1),
+              reason: z.string().min(1).max(300),
+            }),
+            execute: async ({ botId: targetBotId, reason }) => {
+              if (hasHandedOff) {
+                throw new Error("A handoff has already happened this turn")
+              }
+
+              const targetBot = await getBotForChat(chatId, targetBotId)
+
+              if (!targetBot || targetBot.kind !== "group") {
+                throw new Error("The selected bot is not a member of this group")
+              }
+              if (targetBot.id === activeBotId) {
+                throw new Error("Choose a different bot for the handoff")
+              }
+
+              activeBotId = targetBot.id
+              hasHandedOff = true
+              return {
+                botId: targetBot.id,
+                botName: targetBot.name,
+                reason,
+              }
+            },
+          }),
+        }
+      : {}),
   }
 }
