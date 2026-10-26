@@ -4,12 +4,14 @@ import { auth as clerkAuth } from "@clerk/nextjs/server"
 import { auth as triggerAuth } from "@trigger.dev/sdk"
 import { chat, defaultStorage } from "@trigger.dev/sdk/ai"
 
-import type { chatAgent } from "@/app/trigger/chat"
+import type { chatAgent, chatAgentClientDataSchema } from "@/app/trigger/chat"
 import { prisma } from "@/lib/prisma"
+import type { z } from "zod"
 
 const startSession =
   chat.createStartSessionAction<typeof chatAgent>("nebula-chat")
 const readTranscript = chat.createLoadTranscriptAction(defaultStorage)
+type ChatAgentClientData = z.infer<typeof chatAgentClientDataSchema>
 
 async function assertChatOwner(chatId: string) {
   const { isAuthenticated, userId } = await clerkAuth()
@@ -28,9 +30,15 @@ async function assertChatOwner(chatId: string) {
   }
 }
 
-export async function startChatSession({ chatId }: { chatId: string }) {
+export async function startChatSession({
+  chatId,
+  clientData,
+}: {
+  chatId: string
+  clientData: ChatAgentClientData
+}) {
   await assertChatOwner(chatId)
-  return startSession({ chatId })
+  return startSession({ chatId, clientData })
 }
 
 export async function mintChatAccessToken(chatId: string) {

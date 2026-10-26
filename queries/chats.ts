@@ -28,6 +28,7 @@ export async function getUserChatById(chatId: string) {
               avatar: true,
               job: true,
               instructions: true,
+              sandboxId: true,
             },
           },
         },

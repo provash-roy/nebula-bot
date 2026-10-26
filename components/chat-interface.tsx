@@ -31,13 +31,24 @@ import {
   useTriggerChatTransport,
 } from "@trigger.dev/sdk/chat/react"
 
-import type { chatAgent } from "@/app/trigger/chat"
+import type { chatAgent, chatAgentClientDataSchema } from "@/app/trigger/chat"
+import type { z } from "zod"
 
-export function ChatInterface({ chatId }: { chatId: string }) {
+type ChatAgentClientData = z.infer<typeof chatAgentClientDataSchema>
+
+export function ChatInterface({
+  chatId,
+  agentContext,
+}: {
+  chatId: string
+  agentContext: ChatAgentClientData
+}) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "nebula-chat",
+    clientData: agentContext,
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
-    startSession: ({ chatId }) => startChatSession({ chatId }),
+    startSession: ({ chatId, clientData }) =>
+      startChatSession({ chatId, clientData }),
   })
   const {
     messages: initialMessages,
